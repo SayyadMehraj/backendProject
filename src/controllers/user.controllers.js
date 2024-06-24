@@ -3,7 +3,7 @@ import {ApiError} from "../utils/ApiError.js"
 import { User } from "../models/user.models.js";
 import {uploadFileCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
-import mongoose, { Mongoose } from "mongoose";
+import mongoose from "mongoose";
 import jwt from "jsonwebtoken"
 
 //Here async is used beacuse only it is related to the internal system function not a webfunction
@@ -177,8 +177,8 @@ const logoutUser = asyncHandler (async(req,res) => {
     await User.findByIdAndUpdate(
         req.user._id,
     {
-        $set:{
-            refreshToken:undefined,
+        $unset:{
+            refreshToken:1,
         }
     },
     {
@@ -291,8 +291,8 @@ const updateAccountDetails = asyncHandler(async(req,res) => {
 
 const updateUserAvatar = asyncHandler(async(req,res) => {
 
-    const avatarLocal = req.files[0]?.path
-    console.log(avatarLocal);
+    const avatarLocal = req.file?.path
+    // console.log(avatarLocal);
     if(!avatarLocal){
         throw new ApiError(400,"Avatar file is missing")
     }
@@ -322,13 +322,15 @@ const updateUserAvatar = asyncHandler(async(req,res) => {
 })
 
 const updateUserCoverImage = asyncHandler(async(req,res) => {
+    // console.log(req.file)
     const coverImageLocalPath = req.file?.path 
+    // console.log((coverImageLocalPath));
 
     if(!coverImageLocalPath){
         throw new ApiError(400,"Cover Image file is Missing")
     }
 
-    const coverImage = await uploadFileCloudinary(coverImageLocal) 
+    const coverImage = await uploadFileCloudinary(coverImageLocalPath) 
 
     if(!coverImage.url){
         throw new ApiError(400,"Something went wrong while uploading")
@@ -420,14 +422,15 @@ const getUserChannelProfile = asyncHandler(async(req,res) => {
     //The channel is always will be in the array format
     return res
     .status(200)
-    .json(new ApiResponse(200,channel[0]),"Channel data successfully fetched")
+    .json(new ApiResponse(200,channel[0],"Channel data successfully fetched"))
 })
 
 const getWatchHistory = asyncHandler(async(req,res) => {
-    const user = User.aggregate([
+    console.log(req.user._id);
+    const user =await User.aggregate([
         {
             $match:{
-                _id:new mongoose.Types.ObjectId(req.user._id)
+                _id: new mongoose.Types.ObjectId(req.user._id)
             }
         },
         {
@@ -465,7 +468,7 @@ const getWatchHistory = asyncHandler(async(req,res) => {
             }
         }
     ])
-
+    
     return res
     .status(200)
     .json(new ApiResponse(200,user[0].watchHistory,"Watch History Successfully fetched"))
