@@ -3,6 +3,28 @@ import {ApiError} from "../utils/ApiError.js"
 import { User } from "../models/user.models.js";
 import {uploadFileCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
+import mongoose from "mongoose";
+import jwt from "jsonwebtoken"
+
+//Here async is used beacuse only it is related to the internal system function not a webfunction
+const generateAccessAndRefereshToken = async (userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken;
+        //Here we have saved the refreshToken but the problem is when we save it, 
+        //It automatically thinks of the password save method. To overcome this
+        await user.save({
+            validityBeforeSave:false
+        })
+
+        return{accessToken,refreshToken}
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong generating tokens")
+    }
+}
 
 const userRegister = asyncHandler(async(req,res) => {
     //TODO List:
@@ -86,4 +108,92 @@ const userRegister = asyncHandler(async(req,res) => {
     )
 
 })
-export {userRegister}
+
+const loginUser = asyncHandler(async(req,res) => {
+    //TODO List
+    //Get the data from req.body
+    //We can make the login using username or email
+    //Check whether the username or email exists
+    //password check
+    //access and refresh tokens are generated
+    //they are to send to the user through SECURE COOKIES
+
+    const {email,username,password} = req.body;
+
+    if(!username && !email){
+        throw new ApiError(400,"Username or email is required")
+    }
+
+    //If we want to check any one of the fields either username or email
+    // if(!(username || email)){
+    //     throw new ApiError(400,"Username or email is required")
+    // }
+
+    const user =await User.findOne({
+        $or:[{username},{email}]
+    })
+
+    if(!user){
+        throw new ApiError(404,"User doesn't exist")
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(401,"Invalid credentials")
+    }
+
+    const {accessToken, refreshToken} = await generateAccessAndRefereshToken(user._id)     
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+    //By this nobody can access the cookies there are only accessed by server
+    const options = {
+        httpOnly:true,
+        secure:true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken",accessToken,options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(
+        new ApiResponse(200,{
+            user: loggedInUser,accessToken,refreshToken
+        },
+        "User logged in Successfully"
+        )
+    )
+}) 
+
+const logoutUser = asyncHandler (async(req,res) => {
+    //Above all cases we got data from user so that we performed actions
+    //By in this we are not getting response
+    //So we created a middleware on the request
+    
+    //TODO List
+    //clear the cookie
+    //clear refresh token
+    await User.findByIdAndUpdate(
+        req.user._id,
+    {
+        $set:{
+            refreshToken:undefined,
+        }
+    },
+    {
+        new:true,
+    })
+    const options = {
+        httpOnly:true,
+        secure:true,
+    }
+    
+    return res
+    .status(200)
+    .clearCookie("accessToken",options)
+    .clearCookie("refreshToken")
+    .json(new ApiResponse(200,{},"User loggedOut Successfully"))
+})
+
+export {userRegister,loginUser,logoutUser}
