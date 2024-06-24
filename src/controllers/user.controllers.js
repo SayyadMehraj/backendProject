@@ -351,6 +351,79 @@ const updateUserCoverImage = asyncHandler(async(req,res) => {
     .json(new ApiResponse(200,user,"Cover Image updated successfully"))
 })
 
+const getUserChannelProfile = asyncHandler(async(req,res) => {
+    const {username} = req.params;
+
+    if(!username?.trim()){
+        throw new ApiError(400,"Username not found")
+    }
+    //Basically these are Mongoose search or u can say helper functions just like MySql
+    const channel = await User.aggregate([
+        {
+            $match:{
+                username:username?.toLowerCase()
+            }
+        },
+        {
+            //From this we get who all the persons subscribed to a channel
+            $lookup:{
+                from:"subscriptions",
+                localField:"_id",
+                foreignField:"channel",
+                as:"subscribers"
+            }
+        },
+        {
+            //From this we get to which channels they are subscribed to
+            $lookup:{
+                from:"subscriptions",
+                localField:"_id",
+                foreignField:"subscriber",
+                as:"subscribedTo"
+            }
+        },
+        {
+            $addFields:{
+                subscriberCount:{
+                    $size:"$subscribers" //Actually these all are in the format of array(subscribers,subscribedTo)
+                },//Thats why they are in "$"
+                channelSubscribedTo:{
+                    $size:"$subscribedTo"
+                },
+                isSubscribed:{
+                    $cond:{
+                        if:{$in:[req.user?._id,"$subscribers.subscriber"]},
+                        then:true,
+                        else:false,
+                    }
+                }
+            }
+        },
+        {
+            $project:{
+                username:1,
+                fullName:1,
+                email:1,
+                avatar:1,
+                coverImage:1,
+                subscriberCount:1,
+                channelSubscribedTo:1,
+                isSubscribed:1,
+            }
+        }
+    ])
+
+    if(!channel?.length){
+        throw new ApiError(404,"Channel doesn't exists")
+    }
+
+    //The channel is always will be in the array format
+    return res
+    .status(200)
+    .json(new ApiResponse(200,channel[0]),"Channel data successfully fetched")
+})
+
+
 export {userRegister,
         loginUser,
         logoutUser,
@@ -360,4 +433,4 @@ export {userRegister,
         updateAccountDetails,
         updateUserAvatar,
         updateUserCoverImage
-       }
+}
