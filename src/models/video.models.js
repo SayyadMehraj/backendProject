@@ -29,7 +29,7 @@ const VideoSchema = new Schema({
     },
     isPublished:{
         type:Boolean,
-        default:true,
+        default:false,
     },
     owner:{
         type:Schema.Types.ObjectId,
