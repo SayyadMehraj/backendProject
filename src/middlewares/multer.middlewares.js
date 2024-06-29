@@ -8,13 +8,16 @@ const storage = multer.diskStorage({
     },
     filename: function (req, file, cb) {
     //   const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    //Basically it is a good practice to give file names a unique
-    //So that even ever user byMistake uploads the files and they have the same name then it becomes cluster
+    //   Basically it is a good practice to give file names a unique
+    //   So that even ever user byMistake uploads the files and they have the same name then   it  becomes cluster
     //   cb(null, file.fieldname + '-' + uniqueSuffix)
-     cb(null, file.originalname)
+     cb(null,Date.now()+file.originalname)
     }
   })
   
 export const upload = multer({
      storage,
+     limits: {
+      fileSize: 100 * 1024 * 1024 // 100 MB limit
+    },
 })
