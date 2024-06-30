@@ -195,7 +195,76 @@ const getVideoById = asyncHandler(async (req, res) => {
 const updateVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: update video details like title, description, thumbnail
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(400,"Invalid video id")
+    }
 
+    console.log(new mongoose.Types.ObjectId(videoId));
+
+    const { title,description } = req.body
+
+    console.log(title,description);
+
+    if([title,description].some((value) => value?.trim()==="")){
+        console.log("Empty fields");
+        throw new ApiError(400,"Title and Description are required!!")
+    }
+
+    const video = await Video.findById(videoId)
+
+    if(!video){
+        throw new ApiError(400,"No video found")
+    }
+
+    if(video?.owner.toString()!==req.user?._id.toString()){
+        throw new ApiError(400,"You cannot edit the details")
+    }
+
+    const thumbnailLocalPath = req.file?.path
+
+    console.log(thumbnailLocalPath);
+
+    if(!thumbnailLocalPath){
+        throw new ApiError(400,"No thumbnail is uploaded");
+    }
+
+    const thumbnailUpload = await uploadFileCloudinary(thumbnailLocalPath)
+
+    if(!thumbnailUpload){
+        throw new ApiError(400,"Something went wrong while uploading")
+    }
+
+    console.log(thumbnailUpload.url);
+
+    const updatedVideo = await Video.findOneAndUpdate(
+        {
+            _id:new mongoose.Types.ObjectId(videoId)
+        },
+        {
+            $set:{
+                title,
+                description,
+                thumbnail:thumbnailUpload.url
+            }
+        },
+        {
+            new:true,
+            projection:{
+                title:1,
+                description:1,
+                owner:1,
+                duration:1
+            }
+        }
+    )
+
+    if(!updatedVideo){
+        throw new ApiError(500,"Something went wrong")
+    }
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,video,"Changes made successfully!!"))
 })
 
 const deleteVideo = asyncHandler(async (req, res) => {
